@@ -6,7 +6,7 @@ import {
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 
-import WorkOSProvider from '../integrations/workos/provider'
+import { AuthKitProvider } from '@workos/authkit-tanstack-react-start/client'
 
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 
@@ -14,6 +14,7 @@ import appCss from '../styles.css?url'
 
 import type { QueryClient } from '@tanstack/react-query'
 import {TooltipProvider} from "#/components/ui/tooltip.tsx";
+import { Toaster } from "#/components/ui/sonner.tsx";
 
 interface MyRouterContext {
   queryClient: QueryClient
@@ -50,7 +51,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <WorkOSProvider>
+        <AuthKitProvider>
           <TooltipProvider>
           {children}
           <TanStackDevtools
@@ -66,7 +67,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             ]}
           />
           </TooltipProvider>
-        </WorkOSProvider>
+          <Toaster />
+        </AuthKitProvider>
         <Scripts />
       </body>
     </html>

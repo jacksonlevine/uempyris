@@ -30,11 +30,9 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 
-import { useAuth } from "@workos-inc/authkit-react"
-import { registerTokenGetter } from "#/orpc/client.ts"
+import { useAuth } from "@workos/authkit-tanstack-react-start/client"
 
 function LoginPage() {
-  const { signIn, isLoading } = useAuth()
   return (
       <div className="flex min-h-svh flex-col items-center justify-center bg-muted p-6 md:p-10">
         <div className="w-full max-w-sm md:max-w-3xl">
@@ -54,12 +52,8 @@ function LoginPage() {
                     Sign in to your account to continue
                   </p>
                 </div>
-                <Button
-                    className="w-full"
-                    onClick={() => signIn()}
-                    disabled={isLoading}
-                >
-                  Sign In
+                <Button className="w-full" asChild>
+                  <a href="/api/auth/sign-in">Sign In</a>
                 </Button>
                 <p className="text-balance text-center text-xs text-muted-foreground">
                   By signing in, you agree to our{" "}
@@ -123,14 +117,10 @@ function ProductDetail({ product }: { product: Product }) {
 }
 
 export default function Page() {
-  const { user, isLoading, signOut, getAccessToken } = useAuth()
+  const { user, loading, signOut } = useAuth()
   const [selectedProduct, setSelectedProduct] = React.useState<Product | null>(null)
 
-  // Render-time (not effect) so it's registered before child components'
-  // queries fire — child effects run before parent effects.
-  registerTokenGetter(getAccessToken)
-
-  if (isLoading) {
+  if (loading) {
     return (
         <div className="flex min-h-svh items-center justify-center">
           <Spinner className="size-8" />

@@ -1,44 +1,23 @@
 import { ORPCError, os } from '@orpc/server'
-import { createRemoteJWKSet, jwtVerify } from 'jose'
 import { and, eq } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { db } from '#/db/index.ts'
 import { brands, products } from '#/db/schema.ts'
 
-// Server-side copy of the client id; falls back to the VITE_ var so dev
-// works even if only the client-side one is set.
-const clientId =
-  process.env.WORKOS_CLIENT_ID ?? process.env.VITE_WORKOS_CLIENT_ID
-if (!clientId) {
-  throw new Error('Missing WORKOS_CLIENT_ID env variable')
-}
+import type { NoUserInfo, UserInfo } from '@workos/authkit-tanstack-react-start'
 
-// WorkOS publishes the public keys that sign its access tokens here.
-// jose caches them and re-fetches on key rotation.
-const jwks = createRemoteJWKSet(
-  new URL(`https://api.workos.com/sso/jwks/${clientId}`),
-)
+// The route handlers resolve the AuthKit session (httpOnly cookie) and pass
+// it in as initial context. Everything tenant-scoped builds on `authed` —
+// org id always comes from the verified session, never from client input.
+const base = os.$context<{ auth: UserInfo | NoUserInfo }>()
 
-const base = os.$context<{ headers: Headers }>()
-
-// Verifies the Bearer token's signature and extracts the org. Everything
-// tenant-scoped builds on `authed` — org id always comes from the verified
-// token, never from client input.
 const authed = base.use(async ({ context, next }) => {
-  const token = context.headers.get('authorization')?.replace('Bearer ', '')
-  if (!token) throw new ORPCError('UNAUTHORIZED')
-  try {
-    const { payload } = await jwtVerify(token, jwks)
-    if (typeof payload.org_id !== 'string') {
-      throw new Error('session not org-bound')
-    }
-    return next({
-      context: { organizationId: payload.org_id, userId: payload.sub! },
-    })
-  } catch {
-    throw new ORPCError('UNAUTHORIZED')
-  }
+  const { auth } = context
+  if (!auth.user || !auth.organizationId) throw new ORPCError('UNAUTHORIZED')
+  return next({
+    context: { organizationId: auth.organizationId, userId: auth.user.id },
+  })
 })
 
 export const listBrands = authed.handler(({ context }) =>

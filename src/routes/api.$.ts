@@ -4,6 +4,7 @@ import { OpenAPIHandler } from '@orpc/openapi/fetch'
 import { ZodToJsonSchemaConverter } from '@orpc/zod/zod4'
 import { SmartCoercionPlugin } from '@orpc/json-schema'
 import { createFileRoute } from '@tanstack/react-router'
+import { getAuth } from '@workos/authkit-tanstack-react-start'
 import { onError } from '@orpc/server'
 import { OpenAPIReferencePlugin } from '@orpc/openapi/plugins'
 
@@ -55,9 +56,10 @@ const handler = new OpenAPIHandler(router, {
 })
 
 async function handle({ request }: { request: Request }) {
+  const auth = await getAuth()
   const { response } = await handler.handle(request, {
     prefix: '/api',
-    context: { headers: request.headers },
+    context: { auth },
   })
 
   return response ?? new Response('Not Found', { status: 404 })
