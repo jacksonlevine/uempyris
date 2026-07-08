@@ -7,6 +7,8 @@
   },
   "scripts": {
     "dev": "vite dev --port 3000",
+    "dev:all": "bash scripts/dev.sh",
+    "db:reset": "bash scripts/db-reset.sh",
     "generate-routes": "tsr generate",
     "build": "vite build",
     "preview": "vite preview",
@@ -15,6 +17,8 @@
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/raleway": "^5.2.8",
+    "@milkdown/crepe": "^7.21.2",
+    "@milkdown/react": "^7.21.2",
     "@orpc/client": "^1.13.6",
     "@orpc/json-schema": "^1.13.6",
     "@orpc/openapi": "^1.13.6",

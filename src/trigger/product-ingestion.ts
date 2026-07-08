@@ -43,8 +43,8 @@ export const productIngestionTask = task({
       const output = await workflow.run({
         productId: input.productId,
         organizationId: input.organizationId,
-        label: product.name,
-        sourceUrl: '',
+        label: input.label ?? product.name,
+        sourceUrl: input.sourceUrl ?? '',
         claims: null,
         evidence: null,
         brandVoice: null,

@@ -132,6 +132,60 @@ export const products = pgTable(
   ],
 )
 
+export const brandKb = pgTable(
+  'brand_kb',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: text('org_id').notNull(),
+    brandId: uuid('brand_id')
+      .notNull()
+      .references(() => brands.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    content: text('content').notNull(),
+    createdBy: text('created_by'),
+    updatedBy: text('updated_by'),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index('brand_kb_org_idx').on(t.orgId),
+    unique('brand_kb_brand_path_uq').on(t.brandId, t.path),
+  ],
+)
+
+export const brandIngestionRuns = pgTable(
+  'brand_ingestion_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: text('org_id').notNull(),
+    brandId: uuid('brand_id')
+      .notNull()
+      .references(() => brands.id, { onDelete: 'cascade' }),
+    productId: uuid('product_id')
+      .notNull()
+      .references(() => products.id, { onDelete: 'cascade' }),
+    status: marketResearchStatus('status').notNull().default('pending'),
+    content: text('content'),
+    triggerRunId: text('trigger_run_id'),
+    createdAt: timestamp('created_at', { mode: 'string', withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index('brand_ingestion_runs_org_idx').on(t.orgId),
+    index('brand_ingestion_runs_brand_idx').on(t.brandId),
+    index('brand_ingestion_runs_product_idx').on(t.productId),
+    index('brand_ingestion_runs_status_idx').on(t.status),
+  ],
+)
+
 export const marketResearch = pgTable(
   'market_research',
   {

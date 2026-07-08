@@ -7,6 +7,8 @@ import type { productIngestionTask } from '#/trigger/product-ingestion.ts'
 export async function enqueueProductIngestion(input: {
   organizationId: string
   productId: string
+  sourceUrl?: string
+  label?: string
   idempotencyKey?: string
 }) {
   if (!process.env.TRIGGER_SECRET_KEY) {
@@ -20,6 +22,8 @@ export async function enqueueProductIngestion(input: {
       {
         organizationId: input.organizationId,
         productId: input.productId,
+        sourceUrl: input.sourceUrl,
+        label: input.label,
       },
       {
         idempotencyKey:

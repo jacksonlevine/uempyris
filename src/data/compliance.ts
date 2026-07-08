@@ -77,6 +77,29 @@ export function listProductApprovedClaims(
     .orderBy(productApprovedClaims.createdAt)
 }
 
+export async function updateProductApprovedClaimStatus(input: {
+  organizationId: string
+  productId: string
+  claimId: string
+  status: 'approved' | 'rejected'
+}) {
+  const [row] = await db
+    .update(productApprovedClaims)
+    .set({
+      status: input.status,
+      reviewedAt: new Date().toISOString(),
+    })
+    .where(
+      and(
+        eq(productApprovedClaims.orgId, input.organizationId),
+        eq(productApprovedClaims.productId, input.productId),
+        eq(productApprovedClaims.id, input.claimId),
+      ),
+    )
+    .returning()
+  return row
+}
+
 export async function replaceProductApprovedClaims(
   organizationId: string,
   productId: string,

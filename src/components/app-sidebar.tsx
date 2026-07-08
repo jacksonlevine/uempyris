@@ -5,6 +5,7 @@ import * as React from "react"
 import { NavMain } from "#/components/nav-main.tsx"
 import { NavUser } from "#/components/nav-user.tsx"
 import { BrandSwitcher } from "#/components/brand-switcher.tsx"
+import { ProductOnboardingDialog } from "#/components/product-onboarding-dialog.tsx"
 import {
   Sidebar,
   SidebarContent,
@@ -12,20 +13,8 @@ import {
   SidebarHeader,
   SidebarRail,
 } from "#/components/ui/sidebar.tsx"
-import { GalleryVerticalEndIcon, PackageIcon } from "lucide-react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { toast } from "sonner"
-
-import { Button } from "#/components/ui/button.tsx"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "#/components/ui/dialog.tsx"
-import { Input } from "#/components/ui/input.tsx"
+import { GalleryVerticalEndIcon, LayoutDashboardIcon, MicVocalIcon, PackageIcon } from "lucide-react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { orpc } from "#/orpc/client.ts"
 
 // Matches John's ProductSchema from empyris-monorepo.
@@ -38,18 +27,35 @@ export type Product = {
   updatedAt: string
 }
 
+export type Brand = {
+  id: string
+  name: string
+  orgId: string
+  createdBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type MainView = "overview" | "brandVoice" | "products"
+
 export function AppSidebar({
   user,
   signOut,
   onProductSelect,
+  onViewSelect,
+  onActiveBrandChange,
   onProductsChange,
+  activeView,
   selectedProductId,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
   user: any
   signOut: any
   onProductSelect: (product: Product | null) => void
+  onViewSelect: (view: MainView) => void
+  onActiveBrandChange?: (brand: Brand | null) => void
   onProductsChange?: (products: Product[]) => void
+  activeView: MainView
   selectedProductId?: string
 }) {
   const queryClient = useQueryClient()
@@ -60,6 +66,7 @@ export function AppSidebar({
   const [selectedBrandId, setSelectedBrandId] = React.useState<string | null>(null)
   // Fall back to the first brand until the user picks one.
   const activeBrandId = selectedBrandId ?? brands[0]?.id ?? null
+  const activeBrand = brands.find((brand) => brand.id === activeBrandId) ?? null
 
   const productsQuery = useQuery(
     orpc.listProducts.queryOptions({
@@ -82,63 +89,35 @@ export function AppSidebar({
     onProductsChange?.(productRows)
   }, [onProductsChange, productRows])
 
-  // Dialog type is sticky (never cleared on close) so the content stays
-  // stable through Radix's fade-out; only `dialogOpen` flips. Draft resets
-  // at open, not close, for the same reason.
-  const [dialogType, setDialogType] = React.useState<"brand" | "product">("brand")
+  React.useEffect(() => {
+    onActiveBrandChange?.((activeBrand as Brand | null) ?? null)
+  }, [activeBrand, onActiveBrandChange])
+
   const [dialogOpen, setDialogOpen] = React.useState(false)
-  const [draftName, setDraftName] = React.useState("")
-
-  const openDialog = (type: "brand" | "product") => {
-    setDialogType(type)
-    setDraftName("")
-    setDialogOpen(true)
-  }
-  const closeDialog = () => setDialogOpen(false)
-
-  const addBrand = useMutation(
-    orpc.addBrand.mutationOptions({
-      onSuccess: (brand) => {
-        queryClient.invalidateQueries({ queryKey: orpc.listBrands.key() })
-        setSelectedBrandId(brand.id)
-        onProductSelect(null)
-        closeDialog()
-      },
-      onError: (error) => toast.error(`Adding brand failed: ${error.message}`),
-    }),
-  )
-
-  const addProduct = useMutation(
-    orpc.addProduct.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: orpc.listProducts.key() })
-        closeDialog()
-      },
-      onError: (error) =>
-        toast.error(`Adding product failed: ${error.message}`),
-    }),
-  )
-
-  const addPending = addBrand.isPending || addProduct.isPending
-
-  function submitAdd(event: React.FormEvent) {
-    event.preventDefault()
-    const name = draftName.trim()
-    if (dialogType === "brand") {
-      if (!name) return
-      addBrand.mutate({ name })
-      return
-    }
-    if (activeBrandId == null || !name) {
-      return
-    }
-    addProduct.mutate({
-      brandId: activeBrandId,
-      name,
-    })
-  }
 
   const navMain = [
+    {
+      title: "Overview",
+      url: "#",
+      icon: <LayoutDashboardIcon />,
+      isActive: activeView === "overview" && !selectedProductId,
+      onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+        event.preventDefault()
+        onProductSelect(null)
+        onViewSelect("overview")
+      },
+    },
+    {
+      title: "Brand Voice",
+      url: "#",
+      icon: <MicVocalIcon />,
+      isActive: activeView === "brandVoice" && !selectedProductId,
+      onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+        event.preventDefault()
+        onProductSelect(null)
+        onViewSelect("brandVoice")
+      },
+    },
     {
       title: "Products",
       url: "#",
@@ -146,7 +125,13 @@ export function AppSidebar({
         <PackageIcon
         />
       ),
-      isActive: true,
+      isActive: activeView === "products" || selectedProductId != null,
+      forceOpen: true,
+      onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+        event.preventDefault()
+        onProductSelect(null)
+        onViewSelect("products")
+      },
       items: [
         ...productRows.map((product) => ({
           id: product.id,
@@ -156,21 +141,17 @@ export function AppSidebar({
           onClick: (event: React.MouseEvent) => {
             event.preventDefault()
             onProductSelect(product)
+            onViewSelect("products")
           },
         })),
-        // No brand → no possible product; hide the action instead of failing.
-        ...(activeBrandId != null
-          ? [
-              {
-                title: "+ Add product",
-                url: "#",
-                onClick: (event: React.MouseEvent) => {
-                  event.preventDefault()
-                  openDialog("product")
-                },
-              },
-            ]
-          : []),
+        {
+          title: "+ Add product",
+          url: "#",
+          onClick: (event: React.MouseEvent) => {
+            event.preventDefault()
+            setDialogOpen(true)
+          },
+        },
       ],
     },
   ]
@@ -189,8 +170,9 @@ export function AppSidebar({
           onSelect={(id) => {
             setSelectedBrandId(id)
             onProductSelect(null)
+            onViewSelect("overview")
           }}
-          onAdd={() => openDialog("brand")}
+          onAdd={() => setDialogOpen(true)}
         />
       </SidebarHeader>
       <SidebarContent>
@@ -202,36 +184,18 @@ export function AppSidebar({
       <SidebarRail />
     </Sidebar>
 
-    <Dialog open={dialogOpen} onOpenChange={(open) => !open && closeDialog()}>
-      <DialogContent
-        className="sm:max-w-sm"
-      >
-        <form onSubmit={submitAdd}>
-          <DialogHeader>
-            <DialogTitle>
-              {dialogType === "brand" ? "Add brand" : "Add product"}
-            </DialogTitle>
-            {dialogType === "product" ? (
-              <DialogDescription>
-                Create a product under the active brand.
-              </DialogDescription>
-            ) : null}
-          </DialogHeader>
-          <Input
-            className="my-4"
-            placeholder={dialogType === "brand" ? "Brand name" : "Product name"}
-            value={draftName}
-            onChange={(event) => setDraftName(event.target.value)}
-            autoFocus
-          />
-          <DialogFooter>
-            <Button type="submit" disabled={addPending || !draftName.trim()}>
-              {addPending ? "Adding..." : "Add"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <ProductOnboardingDialog
+      open={dialogOpen}
+      activeBrandId={activeBrandId}
+      onOpenChange={setDialogOpen}
+      onProductCreated={(product) => {
+        setSelectedBrandId(product.brandId)
+        onProductSelect(product)
+        onViewSelect("products")
+        queryClient.invalidateQueries({ queryKey: orpc.listBrands.key() })
+        queryClient.invalidateQueries({ queryKey: orpc.listProducts.key() })
+      }}
+    />
     </>
   )
 }

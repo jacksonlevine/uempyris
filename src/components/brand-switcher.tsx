@@ -38,7 +38,6 @@ export function BrandSwitcher({
   const activeBrand = brands.find((brand) => brand.id === activeBrandId)
 
   if (!activeBrand) {
-    // No brands yet (fresh org) — still offer the entry point to create one.
     return (
       <SidebarMenu>
         <SidebarMenuItem>
@@ -47,7 +46,10 @@ export function BrandSwitcher({
               <PlusIcon className="size-4" />
             </div>
             <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-medium">Add brand</span>
+              <span className="truncate font-medium">Add a product</span>
+              <span className="truncate text-xs text-muted-foreground">
+                Get started
+              </span>
             </div>
           </SidebarMenuButton>
         </SidebarMenuItem>
@@ -100,7 +102,7 @@ export function BrandSwitcher({
               <div className="flex size-6 items-center justify-center rounded-md border bg-transparent">
                 <PlusIcon className="size-4" />
               </div>
-              <div className="font-medium text-muted-foreground">Add brand</div>
+              <div className="font-medium text-muted-foreground">Add product</div>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

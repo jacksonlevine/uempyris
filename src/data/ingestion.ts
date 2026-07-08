@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 
 import { db } from '#/db/index.ts'
 import { marketResearch, productFacts, products } from '#/db/schema.ts'
@@ -33,6 +33,25 @@ export function listProductFacts(organizationId: string, productId: string) {
       ),
     )
     .orderBy(productFacts.id)
+}
+
+export async function getProductIngestionState(
+  organizationId: string,
+  productId: string,
+) {
+  const [run] = await db
+    .select()
+    .from(marketResearch)
+    .where(
+      and(
+        eq(marketResearch.orgId, organizationId),
+        eq(marketResearch.productId, productId),
+      ),
+    )
+    .orderBy(desc(marketResearch.createdAt))
+    .limit(1)
+
+  return run ?? null
 }
 
 export async function markIngestionRunning(

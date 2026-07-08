@@ -5,6 +5,8 @@ import type { ProductFactInput } from '#/data/ingestion.ts'
 export const productIngestionInputSchema = z.object({
   organizationId: z.string().min(1),
   productId: z.uuid(),
+  sourceUrl: z.url().optional(),
+  label: z.string().min(1).optional(),
 })
 
 export const productIngestionFieldSchema = z.object({

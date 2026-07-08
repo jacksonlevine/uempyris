@@ -5,7 +5,11 @@ export const Route = createFileRoute('/')({ component: Page })
 import * as React from "react"
 
 import { AppSidebar } from "@/components/app-sidebar"
-import type { Product } from "@/components/app-sidebar"
+import type { Brand, MainView, Product } from "@/components/app-sidebar"
+import {
+  BrandVoiceEditor,
+  type BrandVoiceDraft,
+} from "@/components/brand-voice-editor"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -31,6 +35,9 @@ import {
 } from "@/components/ui/sidebar"
 
 import { useAuth } from "@workos/authkit-tanstack-react-start/client"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
+import { orpc } from "#/orpc/client.ts"
 
 function LoginPage() {
   return (
@@ -127,7 +134,7 @@ function ProductsOverview({
   if (products.length === 0) {
     return (
       <div className="text-sm text-muted-foreground">
-        Add a product from the sidebar. Products in the active brand will appear here.
+        Add a product to get started. Empyris will use the product link to generate claims and prepare brand voice findings.
       </div>
     )
   }
@@ -163,6 +170,146 @@ function ProductsOverview({
   )
 }
 
+function OverviewSections({
+  brand,
+  products,
+  onSectionSelect,
+}: {
+  brand: Brand | null
+  products: Product[]
+  onSectionSelect: (view: MainView) => void
+}) {
+  return (
+    <div className="grid gap-3">
+      <SectionBar
+        title="Brand Voice"
+        detail={brand ? `Voice and identity for ${brand.name}` : "Add a product to get started"}
+        onClick={() => onSectionSelect("brandVoice")}
+      />
+      <SectionBar
+        title="Products"
+        detail={`${products.length} product${products.length === 1 ? "" : "s"}`}
+        onClick={() => onSectionSelect("products")}
+      />
+    </div>
+  )
+}
+
+function SectionBar({
+  title,
+  detail,
+  onClick,
+}: {
+  title: string
+  detail: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className="flex w-full items-center justify-between gap-4 border bg-card/70 px-5 py-4 text-left transition-colors hover:bg-muted/40"
+      onClick={onClick}
+    >
+      <span className="font-heading text-lg font-semibold">{title}</span>
+      <span className="text-sm text-muted-foreground">{detail}</span>
+    </button>
+  )
+}
+
+function BrandVoicePage({ brand }: { brand: Brand | null }) {
+  const queryClient = useQueryClient()
+  const [editable, setEditable] = React.useState(false)
+  const [draft, setDraft] = React.useState<BrandVoiceDraft>({
+    brandName: "",
+    productUrl: "",
+    brandDnaMarkdown: "",
+    imagePromptModifier: "",
+    model: "",
+  })
+  const [draftSource, setDraftSource] = React.useState<string | null>(null)
+
+  const brandVoiceQuery = useQuery(
+    orpc.getBrandVoice.queryOptions({
+      input: { brandId: brand?.id ?? "" },
+      enabled: brand != null,
+    }),
+  )
+
+  const brandVoice = brandVoiceQuery.data
+
+  React.useEffect(() => {
+    if (!brandVoice) return
+    const source = `${brandVoice.brandId}:${brandVoice.updatedAt}`
+    if (draftSource === source) return
+    setDraft({
+      brandName: brandVoice.brandName ?? "",
+      productUrl: brandVoice.productUrl ?? "",
+      brandDnaMarkdown: brandVoice.brandDnaMarkdown ?? "",
+      imagePromptModifier: brandVoice.imagePromptModifier ?? "",
+      model: brandVoice.model ?? "",
+    })
+    setDraftSource(source)
+    setEditable(false)
+  }, [brandVoice, draftSource])
+
+  const updateBrandVoice = useMutation(
+    orpc.updateBrandVoice.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.getBrandVoice.key() })
+        queryClient.invalidateQueries({ queryKey: orpc.listBrands.key() })
+        setEditable(false)
+        toast.success("Brand voice saved")
+      },
+      onError: (error) => toast.error(`Saving brand voice failed: ${error.message}`),
+    }),
+  )
+
+  if (!brand) {
+    return (
+      <div className="text-sm text-muted-foreground">
+        Add a product to get started.
+      </div>
+    )
+  }
+
+  if (brandVoiceQuery.isLoading) {
+    return <Spinner className="size-6" />
+  }
+
+  return (
+    <BrandVoiceEditor
+      documentKey={draftSource ?? brand.id}
+      value={draft}
+      editable={editable}
+      showModeToggle
+      saving={updateBrandVoice.isPending}
+      onEditableChange={setEditable}
+      onChange={setDraft}
+      onCancel={() => {
+        if (!brandVoice) return
+        setDraft({
+          brandName: brandVoice.brandName ?? "",
+          productUrl: brandVoice.productUrl ?? "",
+          brandDnaMarkdown: brandVoice.brandDnaMarkdown ?? "",
+          imagePromptModifier: brandVoice.imagePromptModifier ?? "",
+          model: brandVoice.model ?? "",
+        })
+      }}
+      onSave={() =>
+        updateBrandVoice.mutate({
+          brandId: brand.id,
+          brandName: draft.brandName.trim(),
+          productUrl: draft.productUrl,
+          brandDnaMarkdown: draft.brandDnaMarkdown.trim(),
+          imagePromptModifier: draft.imagePromptModifier.trim(),
+          citations: brandVoice?.citations ?? [],
+          model: draft.model || brandVoice?.model || "manual",
+        })
+      }
+    />
+  )
+}
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, {
     month: "short",
@@ -174,6 +321,8 @@ function formatDate(value: string) {
 export default function Page() {
   const { user, loading, signOut } = useAuth()
   const [selectedProduct, setSelectedProduct] = React.useState<Product | null>(null)
+  const [activeView, setActiveView] = React.useState<MainView>("overview")
+  const [activeBrand, setActiveBrand] = React.useState<Brand | null>(null)
   const [products, setProducts] = React.useState<Product[]>([])
 
   if (loading) {
@@ -194,7 +343,10 @@ export default function Page() {
         }}
                     signOut={signOut}
                     onProductSelect={setSelectedProduct}
+                    onViewSelect={setActiveView}
+                    onActiveBrandChange={setActiveBrand}
                     onProductsChange={setProducts}
+                    activeView={activeView}
                     selectedProductId={selectedProduct?.id}
         />
         <SidebarInset>
@@ -213,17 +365,43 @@ export default function Page() {
                       onClick={(event) => {
                         event.preventDefault()
                         setSelectedProduct(null)
+                        setActiveView("overview")
                       }}
                     >
-                      Products
+                      Overview
                     </BreadcrumbLink>
                   </BreadcrumbItem>
-                  <BreadcrumbSeparator className="hidden md:block" />
-                  <BreadcrumbItem>
-                    <BreadcrumbPage>
-                      {selectedProduct ? selectedProduct.name : "Overview"}
-                    </BreadcrumbPage>
-                  </BreadcrumbItem>
+                  {activeView !== "overview" || selectedProduct ? (
+                    <>
+                      <BreadcrumbSeparator className="hidden md:block" />
+                      <BreadcrumbItem>
+                        {selectedProduct ? (
+                          <BreadcrumbLink
+                            href="#"
+                            onClick={(event) => {
+                              event.preventDefault()
+                              setSelectedProduct(null)
+                              setActiveView("products")
+                            }}
+                          >
+                            Products
+                          </BreadcrumbLink>
+                        ) : (
+                          <BreadcrumbPage>
+                            {activeView === "brandVoice" ? "Brand Voice" : "Products"}
+                          </BreadcrumbPage>
+                        )}
+                      </BreadcrumbItem>
+                    </>
+                  ) : null}
+                  {selectedProduct ? (
+                    <>
+                      <BreadcrumbSeparator className="hidden md:block" />
+                      <BreadcrumbItem>
+                        <BreadcrumbPage>{selectedProduct.name}</BreadcrumbPage>
+                      </BreadcrumbItem>
+                    </>
+                  ) : null}
                 </BreadcrumbList>
               </Breadcrumb>
             </div>
@@ -231,10 +409,18 @@ export default function Page() {
           <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
             {selectedProduct ? (
                 <ProductDetail product={selectedProduct} />
-            ) : (
+            ) : activeView === "products" ? (
                 <ProductsOverview
                   products={products}
                   onProductSelect={setSelectedProduct}
+                />
+            ) : activeView === "brandVoice" ? (
+                <BrandVoicePage brand={activeBrand} />
+            ) : (
+                <OverviewSections
+                  brand={activeBrand}
+                  products={products}
+                  onSectionSelect={setActiveView}
                 />
             )}
           </div>
