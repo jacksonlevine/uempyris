@@ -8,6 +8,7 @@ import {
   listApprovedClaims,
   listBrands,
   listProducts,
+  updateApprovedClaim,
   updateBrandVoice,
   updateApprovedClaimStatus,
 } from './catalog'
@@ -22,6 +23,7 @@ export default {
   getBrandIngestionStateForProduct,
   getIngestionState,
   listApprovedClaims,
+  updateApprovedClaim,
   updateApprovedClaimStatus,
   updateBrandVoice,
 }

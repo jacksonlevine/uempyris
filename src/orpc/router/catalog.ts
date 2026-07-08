@@ -15,8 +15,9 @@ import {
 } from '#/data/brand-ingestion.ts'
 import {
   listProductApprovedClaims,
+  updateProductApprovedClaim,
   updateProductApprovedClaimStatus,
-} from '#/data/compliance.ts'
+} from '#/data/product-claims.ts'
 import { getProductIngestionState } from '#/data/ingestion.ts'
 
 import type { NoUserInfo, UserInfo } from '@workos/authkit-tanstack-react-start'
@@ -127,6 +128,23 @@ export const updateApprovedClaimStatus = authed
       productId: input.productId,
       claimId: input.claimId,
       status: input.status,
+    })
+    if (!row) throw new ORPCError('NOT_FOUND')
+    return row
+  })
+
+export const updateApprovedClaim = authed
+  .input(
+    z.object({
+      productId: z.uuid(),
+      claimId: z.string().min(1),
+      claimText: z.string().min(1),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const row = await updateProductApprovedClaim({
+      organizationId: context.organizationId,
+      ...input,
     })
     if (!row) throw new ORPCError('NOT_FOUND')
     return row

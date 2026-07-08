@@ -67,9 +67,11 @@ async function generateBrandDnaWithOpenRouter(
             'Do not browse. Do not infer brand identity from the retailer host. If the scraped evidence is ambiguous, return the best human-reviewable brand guess from the product title or page text.',
             'You must call the equivalent of submit_brand_dna by returning strict JSON only.',
             'Return exactly these fields: brandName, brandDnaMarkdown, imagePromptModifier, citations.',
+            'brandName must be the official consumer brand name, not the product name, SKU, ingredient, product category, or retailer.',
+            'The brandName field must match the brand named in the Brand DNA markdown heading.',
             'brandDnaMarkdown is the full BRAND DNA DOCUMENT in markdown.',
             'imagePromptModifier is a single 50-75 word paragraph to prepend to downstream image prompts, including exact colors, typography direction, photography direction, and mood when discoverable.',
-            'Do not return compliance analysis or product claims.',
+            'Do not return product claims.',
           ].join('\n'),
         },
         {
@@ -118,7 +120,12 @@ async function generateBrandDnaWithOpenRouter(
   if (!parsed.brandDnaMarkdown || !parsed.imagePromptModifier) return null
 
   return {
-    brandName: sanitizeBrandName(parsed.brandName, input, productOrigin),
+    brandName: sanitizeBrandName({
+      value: parsed.brandName,
+      input,
+      productOrigin,
+      brandDnaMarkdown: parsed.brandDnaMarkdown,
+    }),
     productUrl: productOrigin,
     brandDnaMarkdown: parsed.brandDnaMarkdown.trim(),
     imagePromptModifier: parsed.imagePromptModifier.trim(),
@@ -188,14 +195,40 @@ function parseModelJson(content: string) {
   }
 }
 
-function sanitizeBrandName(
-  value: string | undefined,
-  input: BrandIngestionInput,
-  productOrigin: string,
-) {
+function sanitizeBrandName(options: {
+  value: string | undefined
+  input: BrandIngestionInput
+  productOrigin: string
+  brandDnaMarkdown: string
+}) {
+  const { value, input, productOrigin, brandDnaMarkdown } = options
   const brandName = value?.trim()
-  if (brandName && !isRetailerBrandName(brandName, input.productUrl)) return brandName
+  const markdownBrandName = brandNameFromBrandDnaMarkdown(brandDnaMarkdown)
+
+  if (
+    markdownBrandName &&
+    !isRetailerBrandName(markdownBrandName, input.productUrl) &&
+    (isBadBrandName(brandName, input) || !brandName)
+  ) {
+    return markdownBrandName
+  }
+
+  if (brandName && !isBadBrandName(brandName, input)) return brandName
+  if (markdownBrandName && !isRetailerBrandName(markdownBrandName, input.productUrl)) {
+    return markdownBrandName
+  }
   return brandNameFromProductLabel(input.productLabel) ?? brandNameFromUrl(productOrigin)
+}
+
+function isBadBrandName(
+  brandName: string | undefined,
+  input: BrandIngestionInput,
+) {
+  if (!brandName?.trim()) return true
+  return (
+    isRetailerBrandName(brandName, input.productUrl) ||
+    isLikelyProductName(brandName, input.productLabel)
+  )
 }
 
 function isRetailerBrandName(brandName: string, productUrl: string) {
@@ -207,6 +240,33 @@ function isRetailerBrandName(brandName: string, productUrl: string) {
       host.endsWith(`.${marketplace}`) ||
       normalized === marketplace.replace(/[^a-z0-9]/g, ''),
   )
+}
+
+function isLikelyProductName(brandName: string, productLabel: string) {
+  const brandTokens = significantTokens(brandName)
+  const productTokens = significantTokens(productLabel)
+  if (brandTokens.length === 0 || productTokens.length === 0) return false
+
+  const overlap = brandTokens.filter((token) => productTokens.includes(token))
+  const fullOverlap = overlap.length === brandTokens.length
+  const categoryLike = brandTokens.some((token) => productNameTokens.has(token))
+  return fullOverlap && (categoryLike || brandTokens.length <= 3)
+}
+
+function brandNameFromBrandDnaMarkdown(markdown: string) {
+  const heading = /^#\s+(.+?)\s*$/m.exec(markdown)?.[1]
+  const labeled =
+    /^(?:brand(?:\s+name)?|official\s+brand\s+name)\s*:\s*(.+?)\s*$/im.exec(markdown)?.[1]
+  const candidate = labeled ?? heading
+  if (!candidate) return null
+
+  const cleaned = candidate
+    .replace(/\s+brand\s+dna\s*$/i, '')
+    .replace(/\s+brand\s+voice\s*$/i, '')
+    .replace(/\s+brand\s+identity\s*$/i, '')
+    .trim()
+
+  return cleaned || null
 }
 
 function brandNameFromProductLabel(label: string) {
@@ -235,6 +295,13 @@ function titleCase(value: string) {
   return value.replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
+function significantTokens(value: string) {
+  return value
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length > 1 && !brandStopTokens.has(token))
+}
+
 const marketplaceHosts = [
   'amazon.com',
   'walmart.com',
@@ -258,3 +325,22 @@ const marketplaceBrandNames = [
   'vitacost',
   'instacart',
 ]
+
+const brandStopTokens = new Set(['the', 'and', 'for', 'with', 'from'])
+
+const productNameTokens = new Set([
+  'vitamin',
+  'd3',
+  'supplement',
+  'capsule',
+  'capsules',
+  'tablet',
+  'tablets',
+  'gummy',
+  'gummies',
+  'powder',
+  'drops',
+  'mg',
+  'mcg',
+  'iu',
+])

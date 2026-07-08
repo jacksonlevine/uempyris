@@ -1,6 +1,6 @@
 import { logger, task } from '@trigger.dev/sdk'
 
-import { replaceProductApprovedClaims } from '#/data/compliance.ts'
+import { replaceProductApprovedClaims } from '#/data/product-claims.ts'
 import {
   getProductForIngestion,
   markIngestionFailed,
@@ -64,15 +64,7 @@ export const productIngestionTask = task({
           orgId: input.organizationId,
           productId: input.productId,
           claimText: claim.claimText,
-          claimType: claim.claimType,
           status: claim.status,
-          rationale: claim.rationale,
-          reviewDecision: null,
-          requiredDisclosures: claim.requiredDisclosures,
-          forbiddenImplications: claim.forbiddenImplications,
-          markets: claim.markets,
-          channels: claim.channels,
-          citations: claim.citations,
           generatedBy: claim.generatedBy,
           reviewedAt: null,
         })),

@@ -34,39 +34,17 @@ export const productIngestionFactSchema = z.object({
     'form_claims',
     'form_evidence',
     'form_brand_voice',
-    'compliance_workflow',
+    'product_claims_workflow',
   ]),
   sourceExcerpt: z.string().nullable(),
   confidence: z.number().min(0).max(1),
 })
 
-export const productIngestionCitationSchema = z.object({
-  documentId: z.string().optional(),
-  title: z.string().optional(),
-  authority: z.string().optional(),
-  sourceType: z.string().optional(),
-  url: z.string().optional(),
-})
-
 export const productIngestionApprovedClaimSchema = z.object({
   id: z.string(),
   claimText: z.string(),
-  claimType: z.string(),
   status: z.enum(['proposed', 'approved', 'rejected']),
-  rationale: z.string(),
-  requiredDisclosures: z.array(z.string()),
-  forbiddenImplications: z.array(z.string()),
-  markets: z.array(z.string()),
-  channels: z.array(z.string()),
-  citations: z.array(productIngestionCitationSchema),
   generatedBy: z.string(),
-})
-
-export const productIngestionComplianceCheckSchema = z.object({
-  inputClaim: z.string(),
-  decision: z.enum(['pass', 'fail', 'needs_human_review']),
-  rationale: z.string(),
-  citedDocumentIds: z.array(z.string()),
 })
 
 export const productIngestionOutputSchema = z.object({
@@ -76,8 +54,6 @@ export const productIngestionOutputSchema = z.object({
   input: productIngestionFieldSchema,
   facts: z.array(productIngestionFactSchema),
   approvedClaims: z.array(productIngestionApprovedClaimSchema),
-  complianceChecks: z.array(productIngestionComplianceCheckSchema),
-  sourceDocumentsUsed: z.array(productIngestionCitationSchema),
   productImages: z.array(z.url()).default([]),
 })
 
@@ -85,10 +61,6 @@ export type ProductIngestionInput = z.infer<typeof productIngestionInputSchema>
 export type ProductIngestionOutput = z.infer<typeof productIngestionOutputSchema>
 export type ProductIngestionApprovedClaim = z.infer<
   typeof productIngestionApprovedClaimSchema
->
-export type ProductIngestionCitation = z.infer<typeof productIngestionCitationSchema>
-export type ProductIngestionComplianceCheck = z.infer<
-  typeof productIngestionComplianceCheckSchema
 >
 
 export function buildProductIngestionOutput(input: {
@@ -141,8 +113,6 @@ export function buildProductIngestionOutput(input: {
     },
     facts,
     approvedClaims: [],
-    complianceChecks: [],
-    sourceDocumentsUsed: [],
     productImages: [],
   }
 

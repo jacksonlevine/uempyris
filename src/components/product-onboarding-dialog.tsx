@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { CheckIcon, XIcon } from "lucide-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 
@@ -10,14 +9,14 @@ import {
   BrandVoiceEditor,
   type BrandVoiceDraft,
 } from "#/components/brand-voice-editor.tsx"
+import {
+  ProductClaimsList,
+  type ProductClaim,
+} from "#/components/product-claims-list.tsx"
 import { Button } from "#/components/ui/button.tsx"
 import {
   Card,
-  CardAction,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "#/components/ui/card.tsx"
 import {
   Dialog,
@@ -39,14 +38,6 @@ const steps: Array<{ id: StepId; label: string }> = [
   { id: "claims", label: "Claims" },
   { id: "brand", label: "Brand voice" },
 ]
-
-type Claim = {
-  id: string
-  claimText: string
-  claimType: string
-  status: "proposed" | "approved" | "rejected"
-  rationale: string
-}
 
 export function ProductOnboardingDialog({
   open,
@@ -129,16 +120,6 @@ export function ProductOnboardingDialog({
     }),
   )
 
-  const updateClaim = useMutation(
-    orpc.updateApprovedClaimStatus.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: orpc.listApprovedClaims.key() })
-      },
-      onError: (error) =>
-        toast.error(`Updating claim failed: ${error.message}`),
-    }),
-  )
-
   const approveBrand = useMutation(
     orpc.approveBrandIngestion.mutationOptions({
       onSuccess: () => {
@@ -152,7 +133,7 @@ export function ProductOnboardingDialog({
     }),
   )
 
-  const claims = (claimsQuery.data ?? []) as Claim[]
+  const claims = (claimsQuery.data ?? []) as ProductClaim[]
   const approvedCount = claims.filter((claim) => claim.status === "approved").length
   const ingestionStatus = ingestionQuery.data?.status ?? null
   const claimsProgress = progressForStatus(ingestionStatus, claims.length)
@@ -181,15 +162,6 @@ export function ProductOnboardingDialog({
       ...(activeBrandId ? { brandId: activeBrandId } : {}),
       name,
       sourceUrl,
-    })
-  }
-
-  function setClaimStatus(claim: Claim, status: "approved" | "rejected") {
-    if (!createdProduct) return
-    updateClaim.mutate({
-      productId: createdProduct.id,
-      claimId: claim.id,
-      status,
     })
   }
 
@@ -265,49 +237,11 @@ export function ProductOnboardingDialog({
             />
 
             {claims.length > 0 ? (
-              <div className="grid gap-3">
-                {claims.map((claim) => (
-                  <Card key={claim.id} size="sm">
-                    <CardHeader>
-                      <CardTitle className="normal-case tracking-normal">
-                        {claim.claimText}
-                      </CardTitle>
-                      <CardDescription>{claim.claimType}</CardDescription>
-                      <CardAction>
-                        <ClaimStatus status={claim.status} />
-                      </CardAction>
-                    </CardHeader>
-                    <CardContent className="grid gap-4">
-                      {claim.rationale ? (
-                        <p className="text-sm leading-relaxed text-muted-foreground">
-                          {claim.rationale}
-                        </p>
-                      ) : null}
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={updateClaim.isPending}
-                          onClick={() => setClaimStatus(claim, "rejected")}
-                        >
-                          <XIcon />
-                          Reject
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={updateClaim.isPending}
-                          onClick={() => setClaimStatus(claim, "approved")}
-                        >
-                          <CheckIcon />
-                          Approve
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+              <ProductClaimsList
+                productId={createdProduct.id}
+                claims={claims}
+                showReviewActions
+              />
             ) : (
               <Card size="sm">
                 <CardContent className="py-6 text-sm text-muted-foreground">
@@ -397,21 +331,6 @@ function ProgressBlock({
       <Progress value={value} />
       <div className="text-xs text-muted-foreground">{status}</div>
     </div>
-  )
-}
-
-function ClaimStatus({ status }: { status: Claim["status"] }) {
-  return (
-    <span
-      className={cn(
-        "border px-2 py-1 text-xs font-medium uppercase",
-        status === "approved" && "border-primary/30 bg-primary/10 text-primary",
-        status === "rejected" && "border-destructive/30 bg-destructive/10 text-destructive",
-        status === "proposed" && "text-muted-foreground",
-      )}
-    >
-      {status}
-    </span>
   )
 }
 

@@ -10,6 +10,10 @@ import {
   BrandVoiceEditor,
   type BrandVoiceDraft,
 } from "@/components/brand-voice-editor"
+import {
+  ProductClaimsList,
+  type ProductClaim,
+} from "@/components/product-claims-list"
 import { ProductOnboardingDialog } from "@/components/product-onboarding-dialog"
 import {
   Breadcrumb,
@@ -90,6 +94,12 @@ function LoginPage() {
 }
 
 function ProductDetail({ product }: { product: Product }) {
+  const claimsQuery = useQuery(
+    orpc.listApprovedClaims.queryOptions({
+      input: { productId: product.id },
+    }),
+  )
+  const claims = (claimsQuery.data ?? []) as ProductClaim[]
   const rows: [string, string | null][] = [
     ["id", product.id],
     ["brand_id", product.brandId],
@@ -99,7 +109,8 @@ function ProductDetail({ product }: { product: Product }) {
   ]
 
   return (
-    <Card className="max-w-3xl">
+    <div className="grid max-w-4xl gap-4">
+      <Card>
         <CardHeader>
           <CardTitle>{product.name}</CardTitle>
           <CardDescription>Product</CardDescription>
@@ -118,10 +129,32 @@ function ProductDetail({ product }: { product: Product }) {
                   {value || "-"}
                 </div>
               </div>
-              ))}
+            ))}
           </div>
         </CardContent>
-    </Card>
+      </Card>
+
+      <section className="grid gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-heading text-lg font-semibold">Approved Claims</h2>
+            <p className="text-sm text-muted-foreground">
+              Product claim copy stored for this product.
+            </p>
+          </div>
+          {claimsQuery.isLoading ? <Spinner className="size-5" /> : null}
+        </div>
+        <ProductClaimsList
+          productId={product.id}
+          claims={claims}
+          emptyText={
+            claimsQuery.isLoading
+              ? "Loading product claims..."
+              : "No claims have been generated for this product yet."
+          }
+        />
+      </section>
+    </div>
   )
 }
 
