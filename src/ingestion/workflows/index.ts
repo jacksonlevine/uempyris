@@ -4,6 +4,7 @@ import type { ProductIngestionWorkflow } from './types.ts'
 
 const workflows = {
   [productClaimsWorkflow.id]: productClaimsWorkflow,
+  'compliance-approved-claims': productClaimsWorkflow,
 } satisfies Record<string, ProductIngestionWorkflow>
 
 export function getProductIngestionWorkflow() {
