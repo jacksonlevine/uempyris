@@ -24,6 +24,7 @@ export function NavMain({
     icon?: React.ReactNode
     isActive?: boolean
     items?: {
+      id?: string
       title: string
       url: string
       isActive?: boolean
@@ -53,7 +54,7 @@ export function NavMain({
               <CollapsibleContent>
                 <SidebarMenuSub>
                   {item.items?.map((subItem) => (
-                    <SidebarMenuSubItem key={subItem.title}>
+                    <SidebarMenuSubItem key={subItem.id ?? subItem.title}>
                       <SidebarMenuSubButton asChild isActive={subItem.isActive}>
                         <a href={subItem.url} onClick={subItem.onClick}>
                           <span>{subItem.title}</span>

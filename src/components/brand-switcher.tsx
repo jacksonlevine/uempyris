@@ -26,12 +26,12 @@ export function BrandSwitcher({
   onAdd,
 }: {
   brands: {
-    id: number
+    id: string
     name: string
     logo: React.ReactNode
   }[]
-  activeBrandId: number | null
-  onSelect: (id: number) => void
+  activeBrandId: string | null
+  onSelect: (id: string) => void
   onAdd: () => void
 }) {
   const { isMobile } = useSidebar()

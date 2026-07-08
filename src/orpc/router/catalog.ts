@@ -1,9 +1,12 @@
 import { ORPCError, os } from '@orpc/server'
-import { and, eq } from 'drizzle-orm'
 import * as z from 'zod'
 
-import { db } from '#/db/index.ts'
-import { brands, products } from '#/db/schema.ts'
+import {
+  addBrandForOrganization,
+  addProductForOrganization,
+  listBrandsForOrganization,
+  listProductsForBrand,
+} from '#/data/catalog.ts'
 
 import type { NoUserInfo, UserInfo } from '@workos/authkit-tanstack-react-start'
 
@@ -21,50 +24,28 @@ const authed = base.use(async ({ context, next }) => {
 })
 
 export const listBrands = authed.handler(({ context }) =>
-  db
-    .select()
-    .from(brands)
-    .where(eq(brands.organizationId, context.organizationId))
-    .orderBy(brands.id),
+  listBrandsForOrganization(context.organizationId),
 )
 
 export const listProducts = authed
-  .input(z.object({ brandId: z.number().int() }))
+  .input(z.object({ brandId: z.uuid() }))
   .handler(({ input, context }) =>
-    db
-      .select()
-      .from(products)
-      .where(
-        and(
-          eq(products.brandId, input.brandId),
-          // Tenant guard: a guessed brandId from another org returns nothing.
-          eq(products.organizationId, context.organizationId),
-        ),
-      )
-      .orderBy(products.id),
+    listProductsForBrand(context.organizationId, input.brandId),
   )
 
 export const addBrand = authed
   .input(z.object({ name: z.string().min(1).max(200) }))
   .handler(async ({ input, context }) => {
-    const [row] = await db
-      .insert(brands)
-      .values({ name: input.name, organizationId: context.organizationId })
-      .returning()
-    return row
+    return addBrandForOrganization(context.organizationId, input.name)
   })
 
 export const addProduct = authed
-  .input(z.object({ brandId: z.number().int(), name: z.string().min(1).max(200) }))
+  .input(
+    z.object({
+      brandId: z.uuid(),
+      name: z.string().min(1).max(200),
+    }),
+  )
   .handler(async ({ input, context }) => {
-    // If brandId belongs to another org, the composite FK rejects the insert.
-    const [row] = await db
-      .insert(products)
-      .values({
-        brandId: input.brandId,
-        name: input.name,
-        organizationId: context.organizationId,
-      })
-      .returning()
-    return row
+    return addProductForOrganization(context.organizationId, input)
   })

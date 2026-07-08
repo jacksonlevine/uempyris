@@ -82,43 +82,99 @@ function LoginPage() {
 }
 
 function ProductDetail({ product }: { product: Product }) {
-  const row: [string, string | number][] = [
+  const rows: [string, string | null][] = [
     ["id", product.id],
     ["brand_id", product.brandId],
-    ["organization_id", product.organizationId],
-    ["name", product.name],
+    ["created_by", product.createdBy],
     ["created_at", product.createdAt],
+    ["updated_at", product.updatedAt],
   ]
+
   return (
-      <Card className="max-w-xl">
+    <Card className="max-w-3xl">
         <CardHeader>
           <CardTitle>{product.name}</CardTitle>
-          <CardDescription>
-            <code>products</code> table row
-          </CardDescription>
+          <CardDescription>Product</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-hidden rounded-md border">
-            {row.map(([column, value]) => (
-                <div
-                    key={column}
-                    className="grid grid-cols-[160px_1fr] border-b text-sm last:border-b-0"
-                >
-                  <div className="border-r bg-muted/50 px-3 py-2 font-mono text-muted-foreground">
-                    {column}
-                  </div>
-                  <div className="px-3 py-2 font-mono">{value}</div>
+            {rows.map(([column, value]) => (
+              <div
+                key={column}
+                className="grid grid-cols-[140px_1fr] border-b text-sm last:border-b-0"
+              >
+                <div className="border-r bg-muted/50 px-3 py-2 font-mono text-muted-foreground">
+                  {column}
                 </div>
-            ))}
+                <div className="whitespace-pre-wrap px-3 py-2">
+                  {value || "-"}
+                </div>
+              </div>
+              ))}
           </div>
         </CardContent>
-      </Card>
+    </Card>
   )
+}
+
+function ProductsOverview({
+  products,
+  onProductSelect,
+}: {
+  products: Product[]
+  onProductSelect: (product: Product) => void
+}) {
+  if (products.length === 0) {
+    return (
+      <div className="text-sm text-muted-foreground">
+        Add a product from the sidebar. Products in the active brand will appear here.
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {products.map((product) => (
+        <Card
+          key={product.id}
+          className="cursor-pointer transition-colors hover:bg-muted/30"
+          role="button"
+          tabIndex={0}
+          onClick={() => onProductSelect(product)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault()
+              onProductSelect(product)
+            }
+          }}
+        >
+          <img
+            src="/productimage.png"
+            alt=""
+            className="aspect-video w-full object-cover"
+          />
+          <CardHeader>
+            <CardTitle className="truncate">{product.name}</CardTitle>
+            <CardDescription>{formatDate(product.createdAt)}</CardDescription>
+          </CardHeader>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value))
 }
 
 export default function Page() {
   const { user, loading, signOut } = useAuth()
   const [selectedProduct, setSelectedProduct] = React.useState<Product | null>(null)
+  const [products, setProducts] = React.useState<Product[]>([])
 
   if (loading) {
     return (
@@ -138,6 +194,7 @@ export default function Page() {
         }}
                     signOut={signOut}
                     onProductSelect={setSelectedProduct}
+                    onProductsChange={setProducts}
                     selectedProductId={selectedProduct?.id}
         />
         <SidebarInset>
@@ -151,7 +208,13 @@ export default function Page() {
               <Breadcrumb>
                 <BreadcrumbList>
                   <BreadcrumbItem className="hidden md:block">
-                    <BreadcrumbLink href="#">
+                    <BreadcrumbLink
+                      href="#"
+                      onClick={(event) => {
+                        event.preventDefault()
+                        setSelectedProduct(null)
+                      }}
+                    >
                       Products
                     </BreadcrumbLink>
                   </BreadcrumbItem>
@@ -169,14 +232,10 @@ export default function Page() {
             {selectedProduct ? (
                 <ProductDetail product={selectedProduct} />
             ) : (
-                <>
-                  <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-                    <div className="aspect-video rounded-xl bg-muted/50" />
-                    <div className="aspect-video rounded-xl bg-muted/50" />
-                    <div className="aspect-video rounded-xl bg-muted/50" />
-                  </div>
-                  <div className="min-h-[100vh] flex-1 rounded-xl bg-muted/50 md:min-h-min" />
-                </>
+                <ProductsOverview
+                  products={products}
+                  onProductSelect={setSelectedProduct}
+                />
             )}
           </div>
         </SidebarInset>

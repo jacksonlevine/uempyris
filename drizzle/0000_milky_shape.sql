@@ -1,0 +1,96 @@
+CREATE TYPE "public"."market_research_status" AS ENUM('pending', 'running', 'completed', 'failed');--> statement-breakpoint
+CREATE TABLE "brand" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"org_id" text NOT NULL,
+	"name" text NOT NULL,
+	"created_by" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "compliance_source_documents" (
+	"id" text PRIMARY KEY NOT NULL,
+	"url" text NOT NULL,
+	"title" text NOT NULL,
+	"source_type" text NOT NULL,
+	"authority" text,
+	"jurisdiction" text DEFAULT 'US' NOT NULL,
+	"product_category" text DEFAULT 'dietary_supplement' NOT NULL,
+	"content_markdown" text NOT NULL,
+	"content_hash" text,
+	"status" text DEFAULT 'approved' NOT NULL,
+	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "compliance_source_documents_url_key" UNIQUE("url")
+);
+--> statement-breakpoint
+CREATE TABLE "market_research" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"org_id" text NOT NULL,
+	"product_id" uuid NOT NULL,
+	"status" "market_research_status" DEFAULT 'pending' NOT NULL,
+	"content" text,
+	"created_by" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "product_approved_claims" (
+	"id" text PRIMARY KEY NOT NULL,
+	"product_id" uuid NOT NULL,
+	"org_id" text NOT NULL,
+	"claim_text" text NOT NULL,
+	"claim_type" text DEFAULT 'structure_function' NOT NULL,
+	"status" text DEFAULT 'proposed' NOT NULL,
+	"rationale" text DEFAULT '' NOT NULL,
+	"review_decision" text,
+	"required_disclosures" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"forbidden_implications" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"markets" jsonb DEFAULT '["US"]'::jsonb NOT NULL,
+	"channels" jsonb DEFAULT '["Website"]'::jsonb NOT NULL,
+	"citations" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"generated_by" text DEFAULT 'workflow' NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"reviewed_at" timestamp
+);
+--> statement-breakpoint
+CREATE TABLE "product_facts" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"product_id" uuid NOT NULL,
+	"org_id" text NOT NULL,
+	"category" text NOT NULL,
+	"statement" text NOT NULL,
+	"source" text NOT NULL,
+	"source_excerpt" text,
+	"confidence" real NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "product" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"org_id" text NOT NULL,
+	"brand_id" uuid NOT NULL,
+	"name" text NOT NULL,
+	"created_by" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "market_research" ADD CONSTRAINT "market_research_product_id_product_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."product"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "product_approved_claims" ADD CONSTRAINT "product_approved_claims_product_id_product_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."product"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "product_facts" ADD CONSTRAINT "product_facts_product_id_product_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."product"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "product" ADD CONSTRAINT "product_brand_id_brand_id_fk" FOREIGN KEY ("brand_id") REFERENCES "public"."brand"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "brand_org_idx" ON "brand" USING btree ("org_id");--> statement-breakpoint
+CREATE INDEX "compliance_source_documents_authority_idx" ON "compliance_source_documents" USING btree ("authority");--> statement-breakpoint
+CREATE INDEX "compliance_source_documents_source_type_idx" ON "compliance_source_documents" USING btree ("source_type");--> statement-breakpoint
+CREATE INDEX "compliance_source_documents_status_idx" ON "compliance_source_documents" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "market_research_org_idx" ON "market_research" USING btree ("org_id");--> statement-breakpoint
+CREATE INDEX "market_research_product_idx" ON "market_research" USING btree ("product_id");--> statement-breakpoint
+CREATE INDEX "product_approved_claims_product_idx" ON "product_approved_claims" USING btree ("product_id");--> statement-breakpoint
+CREATE INDEX "product_approved_claims_org_idx" ON "product_approved_claims" USING btree ("org_id");--> statement-breakpoint
+CREATE INDEX "product_approved_claims_status_idx" ON "product_approved_claims" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "product_facts_product_idx" ON "product_facts" USING btree ("product_id");--> statement-breakpoint
+CREATE INDEX "product_facts_org_idx" ON "product_facts" USING btree ("org_id");--> statement-breakpoint
+CREATE INDEX "product_org_idx" ON "product" USING btree ("org_id");--> statement-breakpoint
+CREATE INDEX "product_brand_idx" ON "product" USING btree ("brand_id");
