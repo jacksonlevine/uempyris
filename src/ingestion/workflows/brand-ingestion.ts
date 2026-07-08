@@ -4,6 +4,10 @@ import {
   type BrandIngestionInput,
   type BrandIngestionOutput,
 } from '#/ingestion/brand-ingestion-schema.ts'
+import {
+  scrapeProductPage,
+  type ProductPageScrape,
+} from '#/ingestion/product-page-scrape.ts'
 
 const WORKFLOW_ID = 'brand-ingestion'
 
@@ -11,8 +15,9 @@ export async function runBrandIngestionWorkflow(
   input: BrandIngestionInput,
 ): Promise<BrandIngestionOutput> {
   const productOrigin = originOf(input.productUrl)
+  const scrape = await scrapeProductPage(input.productUrl)
   const snapshot =
-    (await generateBrandDnaWithOpenRouter(input, productOrigin)) ??
+    (await generateBrandDnaWithOpenRouter(input, productOrigin, scrape)) ??
     fallbackBrandDna(input, productOrigin)
 
   return brandIngestionOutputSchema.parse({
@@ -28,6 +33,7 @@ export async function runBrandIngestionWorkflow(
 async function generateBrandDnaWithOpenRouter(
   input: BrandIngestionInput,
   productOrigin: string,
+  scrape: ProductPageScrape,
 ): Promise<BrandDnaSnapshot | null> {
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) return null
@@ -35,7 +41,7 @@ async function generateBrandDnaWithOpenRouter(
   const model =
     process.env.OPENROUTER_BRAND_MODEL ??
     process.env.OPENROUTER_MODEL ??
-    'anthropic/claude-sonnet-4:online'
+    'anthropic/claude-sonnet-4'
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -55,9 +61,10 @@ async function generateBrandDnaWithOpenRouter(
           role: 'system',
           content: [
             'You are the Empyris brand research workflow.',
-            'Research the consumer brand/manufacturer for the supplied product.',
+            'You are given scraped product page evidence. Use it as the ground truth for identifying the consumer brand/manufacturer for the supplied product.',
             'The product URL may be a marketplace or retailer page. Amazon, Walmart, Target, iHerb, GNC, Etsy, eBay, Shopify storefront hosts, and similar retailers are not the brand unless the product itself is actually their private-label brand.',
-            'Use the product label and product page context to identify the real product brand. Do not use the retailer domain as brandName.',
+            'Use the product label and scraped product page evidence to identify the real product brand. Do not use the retailer domain as brandName.',
+            'Do not browse. Do not infer brand identity from the retailer host. If the scraped evidence is ambiguous, return the best human-reviewable brand guess from the product title or page text.',
             'You must call the equivalent of submit_brand_dna by returning strict JSON only.',
             'Return exactly these fields: brandName, brandDnaMarkdown, imagePromptModifier, citations.',
             'brandDnaMarkdown is the full BRAND DNA DOCUMENT in markdown.',
@@ -73,6 +80,11 @@ async function generateBrandDnaWithOpenRouter(
             productUrl: input.productUrl,
             productOrigin,
             retailerHost: hostOf(input.productUrl),
+            productPageEvidence: {
+              sourceUrl: scrape.sourceUrl,
+              scrapeSource: scrape.source,
+              scrapedProductPageText: scrape.content.slice(0, 60_000),
+            },
             requiredOutput: {
               brandName: 'official brand name',
               brandDnaMarkdown: 'markdown brand voice and brand identity document',

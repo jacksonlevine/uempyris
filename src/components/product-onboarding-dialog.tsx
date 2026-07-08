@@ -52,12 +52,10 @@ export function ProductOnboardingDialog({
   open,
   activeBrandId,
   onOpenChange,
-  onProductCreated,
 }: {
   open: boolean
   activeBrandId: string | null
   onOpenChange: (open: boolean) => void
-  onProductCreated: (product: Product) => void
 }) {
   const queryClient = useQueryClient()
   const [createdProduct, setCreatedProduct] = React.useState<Product | null>(null)
@@ -94,10 +92,7 @@ export function ProductOnboardingDialog({
     orpc.addProduct.mutationOptions({
       onSuccess: (product) => {
         setCreatedProduct(product)
-        onProductCreated(product)
         setActiveStep("claims")
-        queryClient.invalidateQueries({ queryKey: orpc.listBrands.key() })
-        queryClient.invalidateQueries({ queryKey: orpc.listProducts.key() })
       },
       onError: (error) =>
         toast.error(`Product onboarding failed: ${error.message}`),
@@ -177,8 +172,7 @@ export function ProductOnboardingDialog({
     setBrandDraftSource(brandIngestionQuery.data.id)
   }, [brandDraftSource, brandIngestionQuery.data?.id, brandSnapshot, productUrl])
 
-  function submitProduct(event: React.FormEvent) {
-    event.preventDefault()
+  function startProductIngestion() {
     const name = productLabel.trim()
     const sourceUrl = productUrl.trim()
     if (!name || !sourceUrl) return
@@ -215,7 +209,9 @@ export function ProductOnboardingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-3xl">
+      <DialogContent
+        className="max-h-[90svh] overflow-y-auto sm:max-w-3xl"
+      >
         <DialogHeader>
           <DialogTitle>Add a product</DialogTitle>
           <DialogDescription>
@@ -227,7 +223,7 @@ export function ProductOnboardingDialog({
         <Stepper activeStep={activeStep} />
 
         {activeStep === "product" ? (
-          <form className="grid gap-5" onSubmit={submitProduct}>
+          <div className="grid gap-5">
             <div className="grid gap-2">
               <Label htmlFor="product-url">Product link</Label>
               <Input
@@ -250,13 +246,14 @@ export function ProductOnboardingDialog({
             </div>
             <div className="flex justify-end">
               <Button
-                type="submit"
+                type="button"
                 disabled={addProduct.isPending || !productLabel.trim() || !productUrl.trim()}
+                onClick={startProductIngestion}
               >
                 {addProduct.isPending ? "Starting..." : "Start ingestion"}
               </Button>
             </div>
-          </form>
+          </div>
         ) : null}
 
         {activeStep === "claims" && createdProduct ? (

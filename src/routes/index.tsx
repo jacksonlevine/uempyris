@@ -10,6 +10,7 @@ import {
   BrandVoiceEditor,
   type BrandVoiceDraft,
 } from "@/components/brand-voice-editor"
+import { ProductOnboardingDialog } from "@/components/product-onboarding-dialog"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -156,9 +157,12 @@ function ProductsOverview({
           }}
         >
           <img
-            src="/productimage.png"
+            src={product.primaryImageUrl ?? "/productimage.png"}
             alt=""
             className="aspect-video w-full object-cover"
+            onError={(event) => {
+              event.currentTarget.src = "/productimage.png"
+            }}
           />
           <CardHeader>
             <CardTitle className="truncate">{product.name}</CardTitle>
@@ -324,6 +328,7 @@ export default function Page() {
   const [activeView, setActiveView] = React.useState<MainView>("overview")
   const [activeBrand, setActiveBrand] = React.useState<Brand | null>(null)
   const [products, setProducts] = React.useState<Product[]>([])
+  const [productDialogOpen, setProductDialogOpen] = React.useState(false)
 
   if (loading) {
     return (
@@ -346,8 +351,14 @@ export default function Page() {
                     onViewSelect={setActiveView}
                     onActiveBrandChange={setActiveBrand}
                     onProductsChange={setProducts}
+                    onAddProduct={() => setProductDialogOpen(true)}
                     activeView={activeView}
                     selectedProductId={selectedProduct?.id}
+        />
+        <ProductOnboardingDialog
+          open={productDialogOpen}
+          activeBrandId={activeBrand?.id ?? null}
+          onOpenChange={setProductDialogOpen}
         />
         <SidebarInset>
           <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">

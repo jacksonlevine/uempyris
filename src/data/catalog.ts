@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 
 import { db } from '#/db/index.ts'
 import { brands, productFacts, products } from '#/db/schema.ts'
@@ -19,8 +19,8 @@ export function listBrandsForOrganization(organizationId: string) {
     .orderBy(brands.id)
 }
 
-export function listProductsForBrand(organizationId: string, brandId: string) {
-  return db
+export async function listProductsForBrand(organizationId: string, brandId: string) {
+  const rows = await db
     .select()
     .from(products)
     .where(
@@ -30,6 +30,32 @@ export function listProductsForBrand(organizationId: string, brandId: string) {
       ),
     )
     .orderBy(products.id)
+
+  if (rows.length === 0) return []
+
+  const imageFacts = await db
+    .select()
+    .from(productFacts)
+    .where(
+      and(
+        eq(productFacts.orgId, organizationId),
+        eq(productFacts.category, 'product_image'),
+        inArray(productFacts.productId, rows.map((product) => product.id)),
+      ),
+    )
+    .orderBy(productFacts.id)
+
+  const primaryImageByProduct = new Map<string, string>()
+  for (const fact of imageFacts) {
+    if (!primaryImageByProduct.has(fact.productId)) {
+      primaryImageByProduct.set(fact.productId, fact.statement)
+    }
+  }
+
+  return rows.map((product) => ({
+    ...product,
+    primaryImageUrl: primaryImageByProduct.get(product.id) ?? null,
+  }))
 }
 
 export async function addBrandForOrganization(
@@ -103,7 +129,7 @@ export async function addProductForOrganization(
       },
     ])
 
-    return product
+    return { ...product, primaryImageUrl: null }
   })
 
   await Promise.all([

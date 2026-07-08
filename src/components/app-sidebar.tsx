@@ -5,7 +5,6 @@ import * as React from "react"
 import { NavMain } from "#/components/nav-main.tsx"
 import { NavUser } from "#/components/nav-user.tsx"
 import { BrandSwitcher } from "#/components/brand-switcher.tsx"
-import { ProductOnboardingDialog } from "#/components/product-onboarding-dialog.tsx"
 import {
   Sidebar,
   SidebarContent,
@@ -14,7 +13,7 @@ import {
   SidebarRail,
 } from "#/components/ui/sidebar.tsx"
 import { GalleryVerticalEndIcon, LayoutDashboardIcon, MicVocalIcon, PackageIcon } from "lucide-react"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { orpc } from "#/orpc/client.ts"
 
 // Matches John's ProductSchema from empyris-monorepo.
@@ -25,6 +24,7 @@ export type Product = {
   createdBy: string | null
   createdAt: string
   updatedAt: string
+  primaryImageUrl: string | null
 }
 
 export type Brand = {
@@ -45,6 +45,7 @@ export function AppSidebar({
   onViewSelect,
   onActiveBrandChange,
   onProductsChange,
+  onAddProduct,
   activeView,
   selectedProductId,
   ...props
@@ -55,11 +56,10 @@ export function AppSidebar({
   onViewSelect: (view: MainView) => void
   onActiveBrandChange?: (brand: Brand | null) => void
   onProductsChange?: (products: Product[]) => void
+  onAddProduct: () => void
   activeView: MainView
   selectedProductId?: string
 }) {
-  const queryClient = useQueryClient()
-
   const brandsQuery = useQuery(orpc.listBrands.queryOptions())
   const brands = brandsQuery.data ?? []
 
@@ -92,8 +92,6 @@ export function AppSidebar({
   React.useEffect(() => {
     onActiveBrandChange?.((activeBrand as Brand | null) ?? null)
   }, [activeBrand, onActiveBrandChange])
-
-  const [dialogOpen, setDialogOpen] = React.useState(false)
 
   const navMain = [
     {
@@ -149,7 +147,7 @@ export function AppSidebar({
           url: "#",
           onClick: (event: React.MouseEvent) => {
             event.preventDefault()
-            setDialogOpen(true)
+            onAddProduct()
           },
         },
       ],
@@ -157,7 +155,6 @@ export function AppSidebar({
   ]
 
   return (
-    <>
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <BrandSwitcher
@@ -172,7 +169,7 @@ export function AppSidebar({
             onProductSelect(null)
             onViewSelect("overview")
           }}
-          onAdd={() => setDialogOpen(true)}
+          onAdd={onAddProduct}
         />
       </SidebarHeader>
       <SidebarContent>
@@ -183,19 +180,5 @@ export function AppSidebar({
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
-
-    <ProductOnboardingDialog
-      open={dialogOpen}
-      activeBrandId={activeBrandId}
-      onOpenChange={setDialogOpen}
-      onProductCreated={(product) => {
-        setSelectedBrandId(product.brandId)
-        onProductSelect(product)
-        onViewSelect("products")
-        queryClient.invalidateQueries({ queryKey: orpc.listBrands.key() })
-        queryClient.invalidateQueries({ queryKey: orpc.listProducts.key() })
-      }}
-    />
-    </>
   )
 }

@@ -9,6 +9,11 @@ import { nitro } from 'nitro/vite'
 
 const config = defineConfig({
   resolve: { tsconfigPaths: true },
+  server: {
+    watch: {
+      ignored: ['**/.trigger/**', '**/.output/**'],
+    },
+  },
   plugins: [
     devtools(),
     nitro({ rollupConfig: { external: [/^@sentry\//] } }),

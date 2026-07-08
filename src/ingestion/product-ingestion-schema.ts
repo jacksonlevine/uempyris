@@ -25,6 +25,7 @@ export const productIngestionFactSchema = z.object({
     'evidence',
     'brand_voice',
     'approved_claim',
+    'product_image',
   ]),
   statement: z.string(),
   source: z.enum([
@@ -77,6 +78,7 @@ export const productIngestionOutputSchema = z.object({
   approvedClaims: z.array(productIngestionApprovedClaimSchema),
   complianceChecks: z.array(productIngestionComplianceCheckSchema),
   sourceDocumentsUsed: z.array(productIngestionCitationSchema),
+  productImages: z.array(z.url()).default([]),
 })
 
 export type ProductIngestionInput = z.infer<typeof productIngestionInputSchema>
@@ -141,6 +143,7 @@ export function buildProductIngestionOutput(input: {
     approvedClaims: [],
     complianceChecks: [],
     sourceDocumentsUsed: [],
+    productImages: [],
   }
 
   return productIngestionOutputSchema.parse(output)

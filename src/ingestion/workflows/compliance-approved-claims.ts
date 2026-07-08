@@ -6,7 +6,12 @@ import {
   approvedClaimId,
   listApprovedComplianceSourceDocuments,
 } from '#/data/compliance.ts'
+import { extractProductImageUrls } from '#/ingestion/product-images.ts'
 import { productIngestionOutputSchema } from '#/ingestion/product-ingestion-schema.ts'
+import {
+  scrapeProductPage,
+  type ProductPageScrape,
+} from '#/ingestion/product-page-scrape.ts'
 
 import type {
   ProductIngestionWorkflow,
@@ -25,10 +30,27 @@ export const complianceApprovedClaimsWorkflow: ProductIngestionWorkflow = {
     await ensureComplianceCorpusSeeded()
     const documents = await listApprovedComplianceSourceDocuments()
     const sourceDocumentsUsed = sourceRefs(documents)
-    const approvedClaims = await generateApprovedClaims(input, sourceDocumentsUsed)
+    const scrape = await scrapeProductPage(input.sourceUrl)
+    const productImages = await extractProductImageUrls({
+      sourceUrl: input.sourceUrl,
+      productLabel: input.label,
+      scrape,
+    })
+    const approvedClaims = await generateApprovedClaims(
+      input,
+      sourceDocumentsUsed,
+      scrape,
+    )
     const complianceChecks = buildComplianceChecks(input.claims, sourceDocumentsUsed)
     const facts = [
       ...baseFacts(input),
+      ...productImages.map((imageUrl, index) => ({
+        category: 'product_image',
+        statement: imageUrl,
+        source: 'url',
+        sourceExcerpt: imageUrl,
+        confidence: index === 0 ? 0.85 : 0.75,
+      })),
       ...approvedClaims.map((claim) => ({
         category: 'approved_claim',
         statement: claim.claimText,
@@ -53,6 +75,7 @@ export const complianceApprovedClaimsWorkflow: ProductIngestionWorkflow = {
       approvedClaims,
       complianceChecks,
       sourceDocumentsUsed,
+      productImages,
     }
 
     return productIngestionOutputSchema.parse(output)
@@ -62,8 +85,13 @@ export const complianceApprovedClaimsWorkflow: ProductIngestionWorkflow = {
 async function generateApprovedClaims(
   input: ProductIngestionWorkflowInput,
   sourceDocumentsUsed: ProductIngestionCitation[],
+  scrape: ProductPageScrape,
 ) {
-  const openRouterClaims = await generateClaimsWithOpenRouter(input, sourceDocumentsUsed)
+  const openRouterClaims = await generateClaimsWithOpenRouter(
+    input,
+    sourceDocumentsUsed,
+    scrape,
+  )
   if (openRouterClaims) return openRouterClaims
 
   const seedClaims = await seedClaimsForProduct(input, sourceDocumentsUsed)
@@ -75,6 +103,7 @@ async function generateApprovedClaims(
 async function generateClaimsWithOpenRouter(
   input: ProductIngestionWorkflowInput,
   sourceDocumentsUsed: ProductIngestionCitation[],
+  scrape: ProductPageScrape,
 ) {
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) return null
@@ -97,9 +126,11 @@ async function generateClaimsWithOpenRouter(
           role: 'system',
           content: [
             'You propose conservative approved advertising claims for a U.S. dietary supplement product.',
+            'You are given scraped product page evidence. Use it as ground truth for the product identity, ingredients, and product context.',
             'Only propose claims that avoid disease treatment, cure, mitigation, diagnosis, or prevention.',
             'Each proposed claim must be a structure/function or general wellness style claim and must cite supplied source ids.',
             'Do not invent law. Use the supplied regulatory source refs only.',
+            'Do not browse. Do not infer product facts from the retailer host. If the evidence is thin, keep claims generic and human-reviewable.',
             'Return strict JSON only.',
           ].join('\n'),
         },
@@ -108,6 +139,11 @@ async function generateClaimsWithOpenRouter(
           content: JSON.stringify({
             task: 'Generate proposed brand-approved claims for human approval.',
             productInfo: productInfoForPrompt(input),
+            productPageEvidence: {
+              sourceUrl: scrape.sourceUrl,
+              scrapeSource: scrape.source,
+              scrapedProductPageText: scrape.content.slice(0, 60_000),
+            },
             regulatorySources: sourceDocumentsUsed,
             requiredOutput: {
               claims: [
@@ -139,7 +175,7 @@ async function generateClaimsWithOpenRouter(
   const content = payload.choices?.[0]?.message?.content
   if (!content) return null
 
-  const parsed = JSON.parse(content) as {
+  const parsed = parseModelJson(content) as {
     claims?: Array<{
       claimText?: string
       claimType?: string
@@ -368,6 +404,23 @@ function splitClaims(value: string | null) {
 
 function tokenSet(value: string) {
   return new Set(value.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean))
+}
+
+function parseModelJson(content: string) {
+  const trimmed = content.trim()
+  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed)
+  const candidate = fenced?.[1]?.trim() ?? trimmed
+
+  try {
+    return JSON.parse(candidate)
+  } catch {
+    const start = candidate.indexOf('{')
+    const end = candidate.lastIndexOf('}')
+    if (start >= 0 && end > start) {
+      return JSON.parse(candidate.slice(start, end + 1))
+    }
+    throw new Error(`OpenRouter approved claim generation returned non-JSON content: ${trimmed.slice(0, 120)}`)
+  }
 }
 
 const diseaseClaimPattern =
